@@ -483,6 +483,30 @@ test('when listPosition is set to top list should be above the input', async (t)
   select.$destroy();
 });
 
+test('when listPosition is set to auto and container at the bottom, the list should be above the input', async (t) => {
+  const testTarget = document.createElement('div');
+  testTarget.style.position = 'fixed';
+  testTarget.style.bottom = '100px';
+  testTarget.style.width = '100%';
+  document.body.appendChild(testTarget);
+  const select = new Select({
+    target: testTarget,
+    props: {
+      items,
+      listOpen: true,
+      listPlacement: 'auto'
+    }
+  });
+
+  const distanceOfListTopFromViewportTop = document.querySelector('.listContainer').getBoundingClientRect().top;
+  const distanceOfInputTopFromViewportTop = document.querySelector('.selectContainer').getBoundingClientRect().top;
+
+  t.ok(distanceOfListTopFromViewportTop <= distanceOfInputTopFromViewportTop);
+
+  testTarget.remove();
+  select.$destroy();
+});
+
 test('when listPlacement is set to bottom the list should be below the input', async (t) => {
   const select = new Select({
     target,
@@ -1003,6 +1027,7 @@ test(`show ellipsis for overflowing text in a List item`, async (t) => {
 
   list.$destroy();
   target.style.width = '';
+  target.style.position = '';
 });
 
 test('focusing in an external textarea should close and blur it', async (t) => {
@@ -1566,6 +1591,7 @@ test('when isMulti and groupBy is active then items should be selectable', async
   await querySelectorClick('.listItem');
   t.equal(JSON.stringify(select.value), JSON.stringify([{"isGroupItem":true,"value":"chocolate","label":"Chocolate","group":"Sweet"}]));
 
+  target.style.maxWidth = '';
   select.$destroy();
 });
 
@@ -1582,6 +1608,8 @@ test('when isMulti and selected items reach edge of container then Select height
   t.ok(document.querySelector('.selectContainer').scrollHeight === 42);
   await handleSet(select, {value: [{value: 'chocolate', label: 'Chocolate'}, {value: 'pizza', label: 'Pizza'}]});
   t.ok(document.querySelector('.selectContainer').scrollHeight > 44);
+
+  target.style.maxWidth = '';
   select.$destroy();
 });
 
@@ -1602,6 +1630,7 @@ test('when isMulti and value is populated then navigating with LeftArrow updates
 
   t.ok(select.$capture_state().activeValue === 1);
 
+  target.style.maxWidth = '';
   select.$destroy();
 });
 
@@ -3765,6 +3794,24 @@ test('When id supplied then add to input', async (t) => {
 
   let aria = document.querySelector('input[type="text"]');
   t.equal(aria.id, 'foods');
+    
+  select.$destroy();
+});
+
+test('when list is open and up/down arrows are used to navigate list then isOutOfViewport result should stay consistent', async (t) => {
+  const select = new Select({
+    target,
+    props: {
+      listOpen: true,
+      items: items,
+      containerStyles: 'position: absolute; bottom: 200px;'
+    },
+  });
+
+  let list = document.querySelector('.listContainer');
+  t.equal(list.style.bottom, '47px')
+  await handleKeyboard('ArrowDown');
+  t.equal(list.style.bottom, '47px')
     
   select.$destroy();
 });
