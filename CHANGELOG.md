@@ -1,12 +1,29 @@
 # svelte-select changelog
 
+# 4.4.7
+
+Temp fix for SvelteKit and scrollbar issues - thanks to @sethvincent
+
+# 4.4.6
+
+Bug fix for isOutOfViewport - thanks to @alexkuzmin
+
+## 4.4.5
+
+* NPM blunder (sorry!)
+
+
+## 4.4.4
+
+* Bug fix for #346 out of viewport - thanks to @nickyrferry
+
 ## 4.4.3
 
 * listOffset was missing from typings - thanks to @blake-regalia
 
 ## 4.4.2
 
-* Bug fixe for #309 - thanks to @ABarnob
+* Bug fix for #309 - thanks to @ABarnob
 
 ## 4.4.1
 
