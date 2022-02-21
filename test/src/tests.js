@@ -1,23 +1,24 @@
-import getName from '../utils/nameGen';
 import normalizeHtml from '../utils/normalizeHtml';
-
 import CustomItem from './CustomItem.svelte';
-import Select from '../../src/Select.svelte';
-import List from '../../src/List.svelte';
+import Select from '../../src/lib/Select.svelte';
+import Multi from '../../src/lib/Multi.svelte';
+import ChevronIcon from '../../src/lib/ChevronIcon.svelte';
 import TestIcon from './TestIcon.svelte';
 import TestClearIcon from './TestClearIcon.svelte';
 import SelectDefault from './Select/Select--default.svelte'
-import SelectMultiSelected from './Select/Select--multiSelected.svelte'
 import ParentContainer from './Select/ParentContainer.svelte'
-import {assert, test, done} from 'tape-modern';
+import {assert, test} from 'tape-modern';
+import VirtualList from 'svelte-tiny-virtual-list';
+import getName from '../utils/nameGen';
+
 
 function querySelectorClick(selector) {
   document.querySelector(selector).click();
   return new Promise(f => setTimeout(f, 0));
 }
 
-function handleKeyboard(key) {
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': key}));
+function handleKeyboard(key, target=window) {
+  target.dispatchEvent(new KeyboardEvent('keydown', {'key': key}));
   return new Promise(f => setTimeout(f, 0));
 }
 
@@ -152,7 +153,6 @@ assert.arrayEqual = (a, b) => {
   assert.ok(a.every((val, i) => val === b[i]));
 };
 
-
 test('with no data creates default elements', async (t) => {
   const testTemplate = new SelectDefault({
     target: testTarget
@@ -172,6 +172,7 @@ test('when isFocused true container adds focused class', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       isFocused: true
     }
   });
@@ -185,6 +186,7 @@ test('when isFocused changes to true input should focus', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       isFocused: false
     }
   });
@@ -193,46 +195,54 @@ test('when isFocused changes to true input should focus', async (t) => {
     select.$set({isFocused: true});
   };
 
-  const hasFocused = await focus(target.querySelector('.selectContainer input'), setFocus);
+  const hasFocused = await focus(target.querySelector('.svelte-select input'), setFocus);
   t.ok(hasFocused);
   select.$destroy();
 });
 
 test('default empty list', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
+    props: {
+      
+      listOpen: true
+    }
   });
 
   t.ok(target.querySelector('.empty'));
 
-  list.$destroy();
+  select.$destroy();
 });
 
 test('default list with five items', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: itemsWithIndex
     }
   });
 
-  t.ok(target.getElementsByClassName('listItem').length);
+  t.ok(target.getElementsByClassName('list-item').length);
 
-  list.$destroy();
+  select.$destroy();
 });
 
 test('should highlight active list item', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: itemsWithIndex,
       value: {value: 'pizza', label: 'Pizza', index: 1}
     }
   });
 
-  t.ok(target.querySelector('.listItem .active').innerHTML === 'Pizza');
+  t.ok(target.querySelector('.list-item .active').innerHTML === 'Pizza');
 
-  list.$destroy();
+  select.$destroy();
 });
 
 test('list scrolls to active item', async (t) => {
@@ -241,23 +251,26 @@ test('list scrolls to active item', async (t) => {
     {value: 'fried-chicken', label: 'Fried Chicken', index: 6},
     {value: 'sunday-roast', label: 'Sunday Roast', index: 7},
   ];
-  const list = new List({
+
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: itemsWithIndex.concat(extras),
       value: {value: 'sunday-roast', label: 'Sunday Roast'},
     }
   });
 
   let offsetBounding;
-  const container = target.querySelector('.listContainer');
-  const focusedElemBounding = container.querySelector('.listItem .active');
+  const container = target.querySelector('.list');
+  const focusedElemBounding = container.querySelector('.list-item .active');
   if (focusedElemBounding) {
     offsetBounding = container.getBoundingClientRect().bottom - focusedElemBounding.getBoundingClientRect().bottom;
   }
 
   t.equal(offsetBounding, 0);
-  list.$destroy();
+  select.$destroy();
 });
 
 test('list scrolls to hovered item when navigating with keys', async (t) => {
@@ -266,22 +279,25 @@ test('list scrolls to hovered item when navigating with keys', async (t) => {
     {value: 'fried-chicken', label: 'Fried Chicken', index: 6},
     {value: 'sunday-roast', label: 'Sunday Roast', index: 7},
   ];
-  const list = new List({
+
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: itemsWithIndex.concat(extras)
     }
   });
 
-  const container = target.querySelector('.listContainer');
-  const totalListItems = container.querySelectorAll('.listItem').length;
+  const container = target.querySelector('.list');
+  const totalListItems = container.querySelectorAll('.list-item').length;
   let selectedItemsAreWithinBounds = true;
   let loopCount = 1;
 
   do {
     await handleKeyboard('ArrowDown');
 
-    const hoveredItem = container.querySelector('.listItem .hover');
+    const hoveredItem = container.querySelector('.list-item .hover');
     const isInViewport = container.getBoundingClientRect().bottom - hoveredItem.getBoundingClientRect().bottom >= 0;
 
     selectedItemsAreWithinBounds = selectedItemsAreWithinBounds && isInViewport;
@@ -291,68 +307,78 @@ test('list scrolls to hovered item when navigating with keys', async (t) => {
 
 
   t.ok(selectedItemsAreWithinBounds);
-  list.$destroy();
+  select.$destroy();
 });
 
 test('hover item updates on keyUp or keyDown', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
     props: {
-      items: items,
-      activeItemIndex: 0,
+      
+      listOpen: true,
+      items: items
     }
   });
 
   await handleKeyboard('ArrowDown');
-  const focusedElemBounding = target.querySelector('.listItem .hover');
+  const focusedElemBounding = target.querySelector('.list-item .hover');
   t.equal(focusedElemBounding.innerHTML.trim(), `Pizza`);
-  list.$destroy();
+  select.$destroy();
 });
 
 test('on enter active item fires a itemSelected event', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: itemsWithIndex
     }
   });
 
   let value = undefined;
-  list.$on('itemSelected', event => {
-    value = event;
+
+  select.$on('select', event => {
+    value = JSON.stringify(event.detail);
   });
 
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
-  t.equal(JSON.stringify(value.detail), JSON.stringify({value: 'cake', label: 'Cake', index: 2}));
-  list.$destroy();
+  await wait(0);
+  t.equal(value, JSON.stringify({value: 'cake', label: 'Cake', index: 2}));
+  select.$destroy();
 });
 
 test('on tab active item fires a itemSelected event', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: itemsWithIndex
     }
   });
 
   let value = undefined;
-  list.$on('itemSelected', event => {
-    value = event;
+  select.$on('select', event => {
+    value = JSON.stringify(event.detail);
   });
 
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Tab'}));
-  t.equal(JSON.stringify(value.detail), JSON.stringify({value: 'cake', label: 'Cake', index: 2}));
-  list.$destroy();
+  await wait(0);
+  t.equal(value, JSON.stringify({value: 'cake', label: 'Cake', index: 2}));
+  select.$destroy();
 });
 
 test('on selected of current active item does not fire a itemSelected event', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: itemsWithIndex,
       value: { value: 'chocolate', label: 'Chocolate', index: 0 }
     }
@@ -360,35 +386,36 @@ test('on selected of current active item does not fire a itemSelected event', as
 
   let itemSelectedFired = false;
 
-  list.$on('itemSelected', () => {
+  select.$on('select', () => {
     itemSelectedFired = true;
   });
 
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
 
   t.equal(itemSelectedFired, false);
-  list.$destroy();
+  select.$destroy();
 });
 
 test('selected item\'s default view', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       value: {value: 'chips', label: 'Chips'},
     }
   });
 
-  t.ok(target.querySelector('.selectedItem .selection').innerHTML === 'Chips');
+  t.ok(target.querySelector('.selected-item .selection').innerHTML === 'Chips');
   select.$destroy();
 });
 
 test('select view updates with value updates', async (t) => {
   const select = new Select({
-    target,
+    target
   });
 
   await handleSet(select, {value: {value: 'chips', label: 'Chips'}});
-  t.ok(target.querySelector('.selectedItem .selection').innerHTML === 'Chips');
+  t.ok(target.querySelector('.selected-item .selection').innerHTML === 'Chips');
 
   select.$destroy();
 });
@@ -397,13 +424,14 @@ test('clear wipes value and updates view', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       value: {value: 'chips', label: 'Chips'},
     }
   });
 
   await wait(0);
   await handleSet(select, {value: undefined});
-  t.ok(!target.querySelector('.selectedItem .selection'));
+  t.ok(!target.querySelector('.selected-item .selection'));
 
   select.$destroy();
 });
@@ -411,10 +439,13 @@ test('clear wipes value and updates view', async (t) => {
 test('clicking on Select opens List', async (t) => {
   const select = new Select({
     target,
+    props: {
+      
+    }
   });
 
-  await querySelectorClick('.selectContainer');
-  const listContainer = document.querySelector('.listContainer');
+  await querySelectorClick('.svelte-select');
+  const listContainer = document.querySelector('.list');
   t.ok(listContainer);
 
   select.$destroy();
@@ -424,12 +455,13 @@ test('Select opens List populated with items', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  await querySelectorClick('.selectContainer');
-  t.ok(target.querySelector('.listItem'));
+  await querySelectorClick('.svelte-select');
+  t.ok(target.querySelector('.list-item'));
 
   select.$destroy();
 });
@@ -438,12 +470,13 @@ test('List starts with first item in hover state', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  await querySelectorClick('.selectContainer');
-  t.ok(target.querySelector('.listItem .hover').innerHTML === 'Chocolate');
+  await querySelectorClick('.svelte-select');
+  t.ok(target.querySelector('.list-item .hover').innerHTML === 'Chocolate');
 
   select.$destroy();
 });
@@ -452,11 +485,12 @@ test('select item from list', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
     }
   });
 
-  await querySelectorClick('.selectContainer');
+  await querySelectorClick('.svelte-select');
   await handleKeyboard('ArrowDown');
   await handleKeyboard('ArrowDown');
   await handleKeyboard('Enter');
@@ -469,41 +503,18 @@ test('when listPosition is set to top list should be above the input', async (t)
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true,
       listPlacement: 'top'
     }
   });
 
-  const distanceOfListBottomFromViewportTop = document.querySelector('.listContainer').getBoundingClientRect().bottom;
-  const distanceOfInputTopFromViewportTop = document.querySelector('.selectContainer').getBoundingClientRect().top;
+  const distanceOfListBottomFromViewportTop = document.querySelector('.list').getBoundingClientRect().bottom;
+  const distanceOfInputTopFromViewportTop = document.querySelector('.svelte-select').getBoundingClientRect().top;
 
   t.ok(distanceOfListBottomFromViewportTop <= distanceOfInputTopFromViewportTop);
 
-  select.$destroy();
-});
-
-test('when listPosition is set to auto and container at the bottom, the list should be above the input', async (t) => {
-  const testTarget = document.createElement('div');
-  testTarget.style.position = 'fixed';
-  testTarget.style.bottom = '100px';
-  testTarget.style.width = '100%';
-  document.body.appendChild(testTarget);
-  const select = new Select({
-    target: testTarget,
-    props: {
-      items,
-      listOpen: true,
-      listPlacement: 'auto'
-    }
-  });
-
-  const distanceOfListTopFromViewportTop = document.querySelector('.listContainer').getBoundingClientRect().top;
-  const distanceOfInputTopFromViewportTop = document.querySelector('.selectContainer').getBoundingClientRect().top;
-
-  t.ok(distanceOfListTopFromViewportTop <= distanceOfInputTopFromViewportTop);
-
-  testTarget.remove();
   select.$destroy();
 });
 
@@ -511,6 +522,7 @@ test('when listPlacement is set to bottom the list should be below the input', a
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true,
       listPlacement: 'bottom'
@@ -518,8 +530,8 @@ test('when listPlacement is set to bottom the list should be below the input', a
   });
 
   await wait(0);
-  const distanceOfListTopFromViewportTop = document.querySelector('.listContainer').getBoundingClientRect().top;
-  const distanceOfInputBottomFromViewportTop = document.querySelector('.selectContainer').getBoundingClientRect().bottom;
+  const distanceOfListTopFromViewportTop = document.querySelector('.list').getBoundingClientRect().top;
+  const distanceOfInputBottomFromViewportTop = document.querySelector('.svelte-select').getBoundingClientRect().bottom;
 
   t.ok(distanceOfListTopFromViewportTop >= distanceOfInputBottomFromViewportTop);
 
@@ -533,6 +545,7 @@ test('blur should close list and remove focus from select', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
@@ -540,8 +553,8 @@ test('blur should close list and remove focus from select', async (t) => {
   select.$set({isFocused: true});
   div.click();
   div.remove();
-  t.ok(!document.querySelector('.listContainer'));
-  t.ok(document.querySelector('.selectContainer input') !== document.activeElement);
+  t.ok(!document.querySelector('.list'));
+  t.ok(document.querySelector('.svelte-select input') !== document.activeElement);
   select.$destroy();
 });
 
@@ -549,16 +562,17 @@ test('selecting item should close list but keep focus on select', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   await wait(0);
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
   await wait(0);
-  t.ok(!document.querySelector('.listContainer'));
-  t.ok(document.querySelector('.selectContainer.focused'));
+  t.ok(!document.querySelector('.list'));
+  t.ok(document.querySelector('.svelte-select.focused'));
   select.$destroy();
 });
 
@@ -566,19 +580,20 @@ test('clicking Select with selected item should open list with item listed as ac
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   await wait(0);
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
   await wait(0);
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   await wait(0);
-  t.ok(document.querySelector('.listItem .hover').innerHTML === 'Cake');
+  t.ok(document.querySelector('.list-item .hover').innerHTML === 'Cake');
   select.$destroy();
 });
 
@@ -586,11 +601,12 @@ test('focus on Select input updates focus state', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
   
-  document.querySelector('.selectContainer input').focus();
+  document.querySelector('.svelte-select input').focus();
 
   t.ok(select.isFocused);
   select.$destroy();
@@ -600,16 +616,18 @@ test('key up and down when Select focused opens list', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer input').focus();
+  const input = document.querySelector('.svelte-select input');
+  input.focus();
   await wait(0);
   t.ok(select.isFocused);
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   await wait(0);
-  t.ok(document.querySelector('.listContainer'));
+  t.ok(document.querySelector('.list'));
 
   select.$destroy();
 });
@@ -618,17 +636,18 @@ test('List should keep width of parent Select', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: true
     }
   });
 
-  document.querySelector('.selectContainer input').focus();
+  const input = document.querySelector('.svelte-select input');
+  input.focus();
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   await wait(0);
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
-  await wait(0);
-  const selectContainer = document.querySelector('.selectContainer');
-  const listContainer = document.querySelector('.listContainer');
+  const selectContainer = document.querySelector('.svelte-select');
+  const listContainer = document.querySelector('.list');
   t.equal(selectContainer.offsetWidth, listContainer.offsetWidth);
 
   select.$destroy();
@@ -641,15 +660,16 @@ test('Placeholder text should reappear when List is closed', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   div.click();
   div.remove();
-  const selectInput = document.querySelector('.selectContainer input');
-  t.equal(selectInput.attributes.placeholder.value, 'Select...');
+  const selectInput = document.querySelector('.svelte-select input');
+  t.equal(selectInput.attributes.placeholder.value, 'Please select');
 
   select.$destroy();
 });
@@ -658,16 +678,17 @@ test('typing in Select filter will hide selected Item', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   select.$set({filterText: 'potato'});
-  t.ok(!document.querySelector('.selectContainer .value'));
+  t.ok(!document.querySelector('.svelte-select .value'));
 
   select.$destroy();
 });
@@ -676,11 +697,12 @@ test('clearing selected item closes List if open', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   await wait(0);
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   await wait(0);
@@ -688,7 +710,7 @@ test('clearing selected item closes List if open', async (t) => {
   await wait(0);
   select.handleClear();
   await wait(0);
-  t.ok(!document.querySelector('.listContainer'));
+  t.ok(!document.querySelector('.list'));
 
   select.$destroy();
 });
@@ -700,17 +722,18 @@ test('closing List clears Select filter text', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   select.$set({filterText: 'potato'});
   div.click();
   div.remove();
-  const selectInput = document.querySelector('.selectContainer input');
-  t.equal(selectInput.attributes.placeholder.value, 'Select...');
+  const selectInput = document.querySelector('.svelte-select input');
+  t.equal(selectInput.attributes.placeholder.value, 'Please select');
 
   select.$destroy();
 });
@@ -722,17 +745,18 @@ test('closing List clears Select filter text', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   select.$set({filterText: 'potato'});
   div.click();
   div.remove();
-  const selectInput = document.querySelector('.selectContainer input');
-  t.equal(selectInput.attributes.placeholder.value, 'Select...');
+  const selectInput = document.querySelector('.svelte-select input');
+  t.equal(selectInput.attributes.placeholder.value, 'Please select');
 
   select.$destroy();
 });
@@ -744,17 +768,18 @@ test('closing List item clears Select filter text', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   select.$set({filterText: 'potato'});
   div.click();
   div.remove();
-  const selectInput = document.querySelector('.selectContainer input');
-  t.equal(selectInput.attributes.placeholder.value, 'Select...');
+  const selectInput = document.querySelector('.svelte-select input');
+  t.equal(selectInput.attributes.placeholder.value, 'Please select');
 
   select.$destroy();
 });
@@ -763,12 +788,13 @@ test('typing while Select is focused populates Select filter text', async (t) =>
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
   select.$set({isFocused: true});
-  document.querySelector('.selectContainer input').blur();
+  document.querySelector('.svelte-select input').blur();
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 't'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'e'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 's'}));
@@ -782,12 +808,13 @@ test('Select input placeholder wipes while item is selected', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {name: 'Item #2'},
     }
   });
 
-  const selectInput = document.querySelector('.selectContainer input');
+  const selectInput = document.querySelector('.svelte-select input');
   t.equal(selectInput.attributes.placeholder.value, '');
 
   select.$destroy();
@@ -797,15 +824,16 @@ test('Select listOpen state controls List', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true
     }
   });
 
   await wait(0);
-  t.ok(document.querySelector('.listContainer'));
+  t.ok(document.querySelector('.list'));
   await handleSet(select, {listOpen: false})
-  t.ok(!document.querySelector('.listContainer'));
+  t.ok(!document.querySelector('.list'));
 
   select.$destroy();
 });
@@ -814,15 +842,16 @@ test('clicking Select toggles List open state', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  t.ok(!document.querySelector('.listContainer'));
-  await querySelectorClick('.selectContainer');
-  t.ok(document.querySelector('.listContainer'));
-  await querySelectorClick('.selectContainer');
-  t.ok(!document.querySelector('.listContainer'));
+  t.ok(!document.querySelector('.list'));
+  await querySelectorClick('.svelte-select');
+  t.ok(document.querySelector('.list'));
+  await querySelectorClick('.svelte-select');
+  t.ok(!document.querySelector('.list'));
 
   select.$destroy();
 });
@@ -831,6 +860,7 @@ test('Select filter text filters list', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
@@ -846,6 +876,7 @@ test('Select filter text filters list with itemFilter', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       itemFilter: (label, filterText, option) => label === 'Ice Cream'
     }
@@ -862,13 +893,14 @@ test('Typing in the Select filter opens List', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: true
     }
   });
 
   await handleSet(select, {filterText: '5'})
-  t.ok(document.querySelector('.listContainer'));
+  t.ok(document.querySelector('.list'));
   select.$destroy();
 });
 
@@ -876,6 +908,7 @@ test('While filtering, the first item in List should receive hover class', async
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: true
     }
@@ -883,7 +916,7 @@ test('While filtering, the first item in List should receive hover class', async
 
   await wait(0);
   await handleSet(select, {filterText: 'I'})
-  t.ok(document.querySelector('.listItem .hover'));
+  t.ok(document.querySelector('.list-item .hover'));
   select.$destroy();
 });
 
@@ -891,13 +924,14 @@ test('Select container styles can be overridden', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {name: 'Item #2'},
       containerStyles: `padding-left: 40px;`
     }
   });
 
-  t.equal(document.querySelector('.selectContainer').style.cssText, `padding-left: 40px;`);
+  t.equal(document.querySelector('.svelte-select').style.cssText, `padding-left: 40px;`);
   select.$destroy();
 });
 
@@ -905,12 +939,13 @@ test('Select can be disabled', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isDisabled: true,
     }
   });
 
-  t.ok(document.querySelector('.selectContainer.disabled'));
+  t.ok(document.querySelector('.svelte-select.disabled'));
 
   select.$destroy();
 });
@@ -919,6 +954,7 @@ test('Select List closes when you click enter', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: true
     }
@@ -936,6 +972,7 @@ test('tabbing should move between tabIndexes and others Selects', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: false
     }
@@ -944,6 +981,7 @@ test('tabbing should move between tabIndexes and others Selects', async (t) => {
   const other = new Select({
     target: extraTarget,
     props: {
+      
       items,
       isFocused: false
     }
@@ -960,6 +998,7 @@ test(`shouldn't be able to clear a disabled Select`, async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isDisabled: true,
       value: {name: 'Item #4'}
@@ -967,7 +1006,7 @@ test(`shouldn't be able to clear a disabled Select`, async (t) => {
   });
 
 
-  t.ok(!document.querySelector('.clearSelect'));
+  t.ok(!document.querySelector('.clear-select'));
 
   select.$destroy();
 });
@@ -976,6 +1015,7 @@ test(`two way binding between Select and it's parent component`, async (t) => {
   const parent = new ParentContainer({
     target,
     props: {
+      
       items,
       value: {value: 'chips', label: 'Chips'},
     }
@@ -988,7 +1028,7 @@ test(`two way binding between Select and it's parent component`, async (t) => {
   });
 
   t.equal(document.querySelector('.selection').innerHTML, document.querySelector('.result').innerHTML);
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
@@ -1003,9 +1043,11 @@ test(`show ellipsis for overflowing text in a List item`, async (t) => {
   target.style.width = '300px';
   target.style.position = 'relative';
 
-  const list = new List({
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: [
         {
           index: 0,
@@ -1019,33 +1061,36 @@ test(`show ellipsis for overflowing text in a List item`, async (t) => {
     }
   });
 
-  const first = document.querySelector('.listItem:first-child .item');
-  const last = document.querySelector('.listItem:last-child .item');
+  const first = document.querySelector('.list-item:first-child .item');
+  const last = document.querySelector('.list-item:last-child .item');
 
   t.ok(first.scrollWidth > first.clientWidth);
   t.ok(last.scrollWidth === last.clientWidth);
 
-  list.$destroy();
+  select.$destroy();
   target.style.width = '';
-  target.style.position = '';
 });
 
 test('focusing in an external textarea should close and blur it', async (t) => {
   const textarea = document.createElement('textarea');
   document.body.appendChild(textarea);
+  
   const select = new Select({
     target,
     props: {
+      
       items,
+
     }
   });
 
-  await querySelectorClick('.selectContainer');
-  t.ok(select.listOpen);
-  textarea.focus();
+  const input = document.querySelector('.svelte-select input');
+  input.focus();
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
+  t.ok(select.listOpen);  
   await wait(0);
+  textarea.focus();
   t.ok(!select.listOpen);
-
   textarea.remove();
   select.$destroy();
 });
@@ -1054,6 +1099,7 @@ test('clicking between Selects should close and blur other Select', async (t) =>
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: false
     }
@@ -1062,18 +1108,19 @@ test('clicking between Selects should close and blur other Select', async (t) =>
   const other = new Select({
     target: extraTarget,
     props: {
+      
       items,
       isFocused: false
     }
   });
 
-  await querySelectorClick('.selectContainer');
+  await querySelectorClick('.svelte-select');
   t.ok(select.listOpen);
   t.ok(select.isFocused);
   t.ok(!other.isFocused);
   t.ok(!other.isFocused);
 
-  await querySelectorClick('#extra .selectContainer');
+  await querySelectorClick('#extra .svelte-select');
   t.ok(!select.listOpen);
   t.ok(!select.isFocused);
   t.ok(other.listOpen);
@@ -1084,9 +1131,11 @@ test('clicking between Selects should close and blur other Select', async (t) =>
 });
 
 test('if only one item in list it should have hover state', async (t) => {
-  const list = new List({
+  const select = new Select({
     target,
     props: {
+      
+      listOpen: true,
       items: [{
         index: 0,
         name: 'test one'
@@ -1094,22 +1143,23 @@ test('if only one item in list it should have hover state', async (t) => {
     }
   });
 
-  t.ok(document.querySelector('.listItem .item').classList.contains('hover'));
+  t.ok(document.querySelector('.list-item .item').classList.contains('hover'));
 
-  list.$destroy();
+  select.$destroy();
 });
 
 test(`hovered item in a filtered list shows hover state`, async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
   select.$set({filterText: 'i'});
 
-  // const lastItem = document.querySelector('.listItem:last-child');
+  // const lastItem = document.querySelector('.list-item:last-child');
   // hover item and check for hover state
 
   t.ok(true);
@@ -1121,12 +1171,13 @@ test(`data shouldn't be stripped from item - currently only saves name`, async (
   const select = new Select({
     target,
     props: {
+      
       items
     }
   });
 
-  await querySelectorClick('.selectContainer');
-  await querySelectorClick('.listItem');
+  await querySelectorClick('.svelte-select');
+  await querySelectorClick('.list-item');
   t.equal(JSON.stringify(select.value), JSON.stringify({value: 'chocolate', label: 'Chocolate'}));
 
   select.$destroy();
@@ -1136,16 +1187,17 @@ test('should not be able to clear when clearing is disabled', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isClearable: false
     }
   });
 
-  document.querySelector('.selectContainer').click();
+  document.querySelector('.svelte-select').click();
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
 
-  t.ok(!document.querySelector('.clearSelect'));
+  t.ok(!document.querySelector('.clear-select'));
 
   select.$destroy();
 });
@@ -1154,30 +1206,14 @@ test('should not be able to search when searching is disabled', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isSearchable: false
     }
   });
 
-  const selectInput = document.querySelector('.selectContainer input');
+  const selectInput = document.querySelector('.svelte-select input');
   t.ok(selectInput.attributes.readonly);
-
-  select.$destroy();
-});
-
-test('should display indicator when searching is disabled', async (t) => {
-  const div = document.createElement('div');
-  document.body.appendChild(div);
-
-  const select = new Select({
-    target,
-    props: {
-      items,
-      isSearchable: false
-    }
-  });
-
-  t.ok(document.querySelector('.indicator'));
 
   select.$destroy();
 });
@@ -1191,30 +1227,32 @@ test('placeholder should be prop value', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items: itemsWithGroup,
       placeholder
     }
   });
 
-  const selectInput = document.querySelector('.selectContainer input');
+  const selectInput = document.querySelector('.svelte-select input');
   t.equal(selectInput.attributes.placeholder.value, placeholder);
 
   select.$destroy();
 });
 
-test('should display spinner when waiting is enabled', async (t) => {
+test('should display loading icon when waiting is enabled', async (t) => {
   const div = document.createElement('div');
   document.body.appendChild(div);
 
   const select = new Select({
     target,
     props: {
+      
       items,
       isWaiting: true
     }
   });
 
-  t.ok(document.querySelector('.spinner'));
+  t.ok(document.querySelector('.loading'));
 
   select.$destroy();
 });
@@ -1223,13 +1261,14 @@ test('inputStyles prop applies css to select input', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {value: 'pizza', label: 'Pizza'},
       inputStyles: `padding-left: 40px;`
     }
   });
 
-  t.equal(document.querySelector('.selectContainer input').style.cssText, `padding-left: 40px;`);
+  t.equal(document.querySelector('.svelte-select input').style.cssText, `padding-left: 40px;`);
   select.$destroy();
 });
 
@@ -1237,6 +1276,7 @@ test('items should be grouped by groupBy expression', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithGroup,
       groupBy
@@ -1247,9 +1287,9 @@ test('items should be grouped by groupBy expression', async (t) => {
     return item.group;
   }
 
-  let title = document.querySelector('.listGroupTitle').innerHTML;
+  let title = document.querySelector('.list-group-title').innerHTML;
   t.ok(title === 'Sweet');
-  let item = document.querySelector('.listItem .item').innerHTML; 
+  let item = document.querySelector('.list-item .item').innerHTML; 
   t.ok(item === 'Chocolate');
   select.$destroy();
 });
@@ -1259,6 +1299,7 @@ test('clicking group header should not make a selected', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithGroup,
       groupBy: (item) => item.group
@@ -1266,7 +1307,7 @@ test('clicking group header should not make a selected', async (t) => {
   });
 
   await wait(0);
-  await querySelectorClick('.listGroupTitle');
+  await querySelectorClick('.list-group-title');
 
   t.ok(!select.value);
 
@@ -1277,19 +1318,17 @@ test('clicking an item with selectable: false should not make a selected', async
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithSelectable
     }
   });
 
   await wait(0);
-
-  // notSelectable1
-  await querySelectorClick('.listItem:nth-child(1)')
+  await querySelectorClick('.list-item:nth-child(1)');
   t.ok(!select.value);
-
-  // notSelectable2
-  await querySelectorClick('.listItem:nth-child(4)')
+  select.listOpen = true;
+  await querySelectorClick('.list-item:nth-child(4)')
   t.ok(!select.value);
 
   select.$destroy();
@@ -1299,6 +1338,7 @@ test('clicking an item with selectable not specified should make a selected', as
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithSelectable
     }
@@ -1307,7 +1347,7 @@ test('clicking an item with selectable not specified should make a selected', as
   await wait(0);
 
   // selectableDefault
-  await querySelectorClick('.listItem:nth-child(2)')
+  await querySelectorClick('.list-item:nth-child(2)')
   t.ok(select.value && select.value.value == 'selectableDefault');
 
   select.$destroy();
@@ -1317,18 +1357,15 @@ test('clicking an item with selectable: true should make a selected', async (t) 
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithSelectable
     }
   });
 
   await wait(0);
-
-  // selectableDefault
-  await querySelectorClick('.listItem:nth-child(3)')
-  console.log(select.value)
+  await querySelectorClick('.list-item:nth-child(3)')
   t.ok(select.value && select.value.value == 'selectableTrue');
-
   select.$destroy();
 });
 
@@ -1336,6 +1373,7 @@ test('when groupBy, no active item and keydown enter is fired then list should c
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithGroup,
       groupBy: (item) => item.group
@@ -1343,7 +1381,7 @@ test('when groupBy, no active item and keydown enter is fired then list should c
   });
 
   await wait(0);
-  await querySelectorClick('.selectContainer');
+  await querySelectorClick('.svelte-select');
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
   t.ok(!select.value);
 
@@ -1354,6 +1392,7 @@ test('when isGroupHeaderSelectable clicking group header should select createGro
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithGroup,
       isGroupHeaderSelectable: true,
@@ -1379,7 +1418,7 @@ test('when isGroupHeaderSelectable clicking group header should select createGro
     return item.group === groupHeaderItem.id;
   });
 
-  await querySelectorClick('.listItem');
+  await querySelectorClick('.list-item');
 
   t.ok(select.value.isGroupHeader);
   t.equal(select.value.label, createGroupHeaderItem(groupBy(groupItem), groupItem).label);
@@ -1391,6 +1430,7 @@ test('group headers label should be created by getGroupHeaderLabel(item)', async
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithGroup,
       groupBy,
@@ -1410,7 +1450,7 @@ test('group headers label should be created by getGroupHeaderLabel(item)', async
 
   const groupHeaderItem = select.getFilteredItems()[0];
 
-  t.equal(target.querySelector('.listGroupTitle').textContent, getGroupHeaderLabel(groupHeaderItem));
+  t.equal(target.querySelector('.list-group-title').textContent, getGroupHeaderLabel(groupHeaderItem));
 
   select.$destroy();
 });
@@ -1419,6 +1459,7 @@ test('groups should be sorted by expression', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       items: itemsWithGroup,
       groupBy: (item) => item.group,
@@ -1428,8 +1469,8 @@ test('groups should be sorted by expression', async (t) => {
 
   await wait();
 
-  t.ok(target.querySelector('.listGroupTitle').textContent.trim() === 'Savory');
-  t.ok(target.querySelector('.listItem').textContent.trim() === 'Pizza');
+  t.ok(target.querySelector('.list-group-title').textContent.trim() === 'Savory');
+  t.ok(target.querySelector('.list-item').textContent.trim() === 'Pizza');
 
   select.$destroy();
 });
@@ -1438,6 +1479,7 @@ test('when isMulti is true show each item in value', async (t) => {
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [
@@ -1447,7 +1489,7 @@ test('when isMulti is true show each item in value', async (t) => {
     }
   });
 
-  const all = target.querySelectorAll('.multiSelectItem .multiSelectItem_label');
+  const all = target.querySelectorAll('.multi-item .multi-item_label');
   t.ok(all[0].innerHTML === 'Pizza');
   t.ok(all[1].innerHTML === 'Chips');
 
@@ -1458,13 +1500,14 @@ test('when isMulti is true and value is undefined show placeholder text', async 
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: undefined
     }
   });
 
-  t.ok(!target.querySelector('.multiSelectItem'));
+  t.ok(!target.querySelector('.multi-item'));
 
   select.$destroy();
 });
@@ -1473,14 +1516,15 @@ test('when isMulti is true clicking item in List will populate value', async (t)
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: undefined
     }
   });
 
-  await querySelectorClick('.selectContainer');
-  await querySelectorClick('.listItem');
+  await querySelectorClick('.svelte-select');
+  await querySelectorClick('.list-item');
 
   t.equal(JSON.stringify(select.value), JSON.stringify([{value: 'chocolate', label: 'Chocolate'}]));
 
@@ -1491,6 +1535,7 @@ test('when isMulti is true items in value will not appear in List', async (t) =>
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chocolate', label: 'Chocolate'}]
@@ -1513,6 +1558,7 @@ test('when isMulti is true both value and filterText filters List', async (t) =>
   const select = new Select({
     target,
     props: {
+      Multi,
       listOpen: true,
       isMulti: true,
       items,
@@ -1533,13 +1579,14 @@ test('when isMulti is true clicking X on a selected item will remove it from val
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chocolate', label: 'Chocolate'}, {value: 'pizza', label: 'Pizza'}]
     }
   });
 
-  document.querySelector('.multiSelectItem_clear').click();
+  document.querySelector('.multi-item_clear').click();
   t.equal(JSON.stringify(select.value), JSON.stringify([{value: 'pizza', label: 'Pizza'}]));
 
   select.$destroy();
@@ -1549,13 +1596,14 @@ test('when isMulti is true and all selected items have been removed then placeho
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chocolate', label: 'Chocolate'}]
     }
   });
 
-  document.querySelector('.multiSelectItem_clear').click();
+  document.querySelector('.multi-item_clear').click();
 
   select.$destroy();
 });
@@ -1564,13 +1612,14 @@ test('when isMulti is true and items are selected then clear all should wipe all
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chocolate', label: 'Chocolate'}, {value: 'pizza', label: 'Pizza'}]
     }
   });
 
-  document.querySelector('.clearSelect').click();
+  document.querySelector('.clear-select').click();
   t.equal(select.value, undefined);
 
   select.$destroy();
@@ -1580,6 +1629,7 @@ test('when isMulti and groupBy is active then items should be selectable', async
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items: itemsWithGroup,
       groupBy: (item) => item.group
@@ -1587,11 +1637,10 @@ test('when isMulti and groupBy is active then items should be selectable', async
   });
 
   target.style.maxWidth = '400px';
-  await querySelectorClick('.selectContainer');
-  await querySelectorClick('.listItem');
+  await querySelectorClick('.svelte-select');
+  await querySelectorClick('.list-item');
   t.equal(JSON.stringify(select.value), JSON.stringify([{"isGroupItem":true,"value":"chocolate","label":"Chocolate","group":"Sweet"}]));
 
-  target.style.maxWidth = '';
   select.$destroy();
 });
 
@@ -1599,17 +1648,16 @@ test('when isMulti and selected items reach edge of container then Select height
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items
     }
   });
 
-  target.style.maxWidth = '250px';
-  t.ok(document.querySelector('.selectContainer').scrollHeight === 42);
+  target.style.maxWidth = '252px';
+  t.ok(document.querySelector('.svelte-select').scrollHeight === 42);
   await handleSet(select, {value: [{value: 'chocolate', label: 'Chocolate'}, {value: 'pizza', label: 'Pizza'}]});
-  t.ok(document.querySelector('.selectContainer').scrollHeight > 44);
-
-  target.style.maxWidth = '';
+  t.ok(document.querySelector('.svelte-select').scrollHeight > 44);
   select.$destroy();
 });
 
@@ -1617,6 +1665,7 @@ test('when isMulti and value is populated then navigating with LeftArrow updates
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chocolate', label: 'Chocolate'}, {value: 'pizza', label: 'Pizza'}, {value: 'chips', label: 'Chips'},],
@@ -1625,12 +1674,13 @@ test('when isMulti and value is populated then navigating with LeftArrow updates
   });
 
   target.style.maxWidth = '100%';
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
+
+  const input = document.querySelector('.svelte-select input');
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
 
   t.ok(select.$capture_state().activeValue === 1);
 
-  target.style.maxWidth = '';
   select.$destroy();
 });
 
@@ -1638,6 +1688,7 @@ test('when isMulti and value is populated then navigating with ArrowRight update
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chocolate', label: 'Chocolate'}, {value: 'pizza', label: 'Pizza'}, {value: 'chips', label: 'Chips'},],
@@ -1645,10 +1696,11 @@ test('when isMulti and value is populated then navigating with ArrowRight update
     }
   });
 
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowRight'}));
+  const input = document.querySelector('.svelte-select input');
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowRight'}));
   t.ok(select.$capture_state().activeValue === 1);
 
   select.$destroy();
@@ -1658,18 +1710,20 @@ test('when isMulti and value has items and list opens then first item in list sh
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       isFocused: true
     }
   });
 
-  await querySelectorClick('.selectContainer');
-  await querySelectorClick('.listItem');
-  await handleKeyboard('ArrowDown');
+  await querySelectorClick('.svelte-select');
+  await querySelectorClick('.list-item');
 
-  t.ok(document.querySelector('.listItem .hover'));
-
+  const input = document.querySelector('.svelte-select input');
+  input.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
+  await wait(0);
+  t.ok(document.querySelector('.list-item .hover'));
   select.$destroy();
 });
 
@@ -1677,6 +1731,7 @@ test('when isMulti, isDisabled, and value has items then items should be locked'
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       isDisabled: true,
@@ -1684,7 +1739,7 @@ test('when isMulti, isDisabled, and value has items then items should be locked'
     }
   });
 
-  t.ok(document.querySelector('.multiSelectItem.disabled'));
+  t.ok(document.querySelector('.multi-item.disabled'));
 
   select.$destroy();
 });
@@ -1693,13 +1748,14 @@ test('when isMulti is true show each item in value if simple arrays are used', a
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items: ['pizza', 'chips', 'chocolate'],
       value: ['pizza', 'chocolate']
     }
   });
 
-  const all = target.querySelectorAll('.multiSelectItem .multiSelectItem_label');
+  const all = target.querySelectorAll('.multi-item .multi-item_label');
   t.ok(all[0].innerHTML === 'pizza');
   t.ok(all[1].innerHTML === 'chocolate');
 
@@ -1711,6 +1767,7 @@ test('when labelIdentifier is set you can pass a string and see the right label'
   const select = new Select({
     target,
     props: {
+      
       items: [{id: 0, name: 'ONE'}, {id: 1, name: 'TWO'}],
       value: {id: 0, name: 'ONE'},
       optionIdentifier: 'id',
@@ -1728,6 +1785,7 @@ test('when getValue method is set should use that key to update value', async (t
   const select = new Select({
     target,
     props: {
+      
       items: [{id: 0, label: 'ONE'}, {id: 1, label: 'TWO'}],
       value: {id: 0, label: 'ONE'},
       optionIdentifier: 'id'
@@ -1735,7 +1793,7 @@ test('when getValue method is set should use that key to update value', async (t
   });
 
   t.ok(select.value.id === 0);
-  await querySelectorClick('.selectContainer');
+  await querySelectorClick('.svelte-select');
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
   t.ok(select.value.id === 1);
@@ -1747,11 +1805,11 @@ test('when loadOptions method is supplied and filterText has length then items s
   const select = new Select({
     target,
     props: {
+      Item: CustomItem, 
+      Selection: CustomItem,
       getOptionLabel: (option) => option.name,
       loadOptions: getPosts,
       optionIdentifier: 'id',
-      Item: CustomItem,
-      Selection: CustomItem
     }
   });
 
@@ -1768,13 +1826,12 @@ test('when noOptionsMessage is set and there are no items then show message', as
   const select = new Select({
     target,
     props: {
+      
       noOptionsMessage: 'SO SO SO SCANDALOUS',
-      isFocused: true
+      listOpen: true
     }
   });
 
-  window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowDown'}));
-  await wait(0);
   t.ok(document.querySelector('.empty').innerHTML === 'SO SO SO SCANDALOUS');
 
   select.$destroy();
@@ -1784,6 +1841,7 @@ test('when getSelectionLabel method is supplied and value are no items then disp
  const select = new Select({
     target,
     props: {
+      
       getSelectionLabel: (option) => option.notLabel,
       value: {notLabel: 'This is not a label', value: 'not important'},
     }
@@ -1799,13 +1857,14 @@ test('when getOptionLabel method and items is supplied then display result of ge
   const select = new Select({
     target,
     props: {
+      
       getOptionLabel: (option) => option.notLabel,
       isFocused: true,
       items: [{notLabel: 'This is not a label', value: 'not important #1'}, {notLabel: 'This is not also not a label', value: 'not important #2'}],
     }
   });
 
-  await handleKeyboard('ArrowDown');
+  await handleKeyboard('ArrowDown', select.input);
   t.ok(document.querySelector('.item').innerHTML === 'This is not a label');
 
   select.$destroy();
@@ -1815,13 +1874,14 @@ test('when getOptionLabel method and items is supplied then display result of ge
   const select = new Select({
     target,
     props: {
+      
       getOptionLabel: (option) => option.notLabel,
       isFocused: true,
       items: [{notLabel: 'This is not a label', value: 'not important #1'}, {notLabel: 'This is not also not a label', value: 'not important #2'}],
     }
   });
 
-  await handleKeyboard('ArrowDown');
+  await handleKeyboard('ArrowDown', select.input);
   t.ok(document.querySelector('.item').innerHTML === 'This is not a label');
 
   select.$destroy();
@@ -1841,7 +1901,7 @@ test('when a custom Item component is supplied then use to display each item', a
     }
   });
 
-  await handleKeyboard('ArrowDown');
+  await handleKeyboard('ArrowDown', select.input);
   t.ok(document.querySelector('.customItem_name').innerHTML === 'A Name');
 
   select.$destroy();
@@ -1861,7 +1921,7 @@ test('when a custom Selection component is supplied then use to display selectio
     }
   });
 
-  await handleKeyboard('ArrowDown');
+  await handleKeyboard('ArrowDown', select.input);
   await handleKeyboard('Enter');
 
   t.ok(document.querySelector('.customItem_name').innerHTML === 'A Name');
@@ -1873,11 +1933,12 @@ test('when loadOptions method is supplied, isMulti is true and filterText has le
   const select = new Select({
     target,
     props: {
+      Item: CustomItem,
+      Multi,
       getOptionLabel: (option) => option.name,
       getSelectionLabel: (option) => option.name,
       loadOptions: getPosts,
       optionIdentifier: 'id',
-      Item: CustomItem,
       isMulti: true
     }
   });
@@ -1885,9 +1946,9 @@ test('when loadOptions method is supplied, isMulti is true and filterText has le
   await wait(0);
   await handleSet(select, {filterText: 'Juniper'});
   await wait(600);
-  await handleKeyboard('ArrowDown');
+  await handleKeyboard('ArrowDown', select.input);
   await handleKeyboard('Enter');
-  t.ok(document.querySelector('.multiSelectItem_label').innerHTML === 'Juniper Wheat Beer');
+  t.ok(document.querySelector('.multi-item_label').innerHTML === 'Juniper Wheat Beer');
   select.$destroy();
 });
 
@@ -1895,6 +1956,7 @@ test('when getSelectionLabel contains HTML then render the HTML', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       value: items[0],
       getSelectionLabel: (option) => `<p>${option.label}</p>`,
     }
@@ -1909,26 +1971,24 @@ test('when getOptionLabel contains HTML then render the HTML', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       getOptionLabel: (option) => `<p>${option.label}</p>`,
       isFocused: true
     }
   });
 
-  await handleKeyboard('ArrowDown');
+  await handleKeyboard('ArrowDown', select.input);
   t.ok(document.querySelector('.item').innerHTML === '<p>Chocolate</p>');
 
   select.$destroy();
 });
 
 test('when isMulti is true, value populated and arrowLeft is pressed then no items in list should be active', async (t) => {
-  const selectMultiSelected = new SelectMultiSelected({
-    target: testTarget,
-  });
-
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [
@@ -1936,7 +1996,6 @@ test('when isMulti is true, value populated and arrowLeft is pressed then no ite
         {value: 'chips', label: 'Chips'},
       ],
       isFocused: true
-
     }
   });
 
@@ -1944,13 +2003,13 @@ test('when isMulti is true, value populated and arrowLeft is pressed then no ite
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'ArrowLeft'}));
   t.ok(!document.querySelector('.hover'));
   select.$destroy();
-  selectMultiSelected.$destroy();
 });
 
-test('when hideEmptyState true then do not show "no options" div ', async (t) => {
+test('when hideEmptyState true then do not show "no items" div ', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true,
       filterText: 'x',
@@ -1969,6 +2028,7 @@ test('when value changes then select event should fire', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
     }
   });
@@ -1980,7 +2040,7 @@ test('when value changes then select event should fire', async (t) => {
   });
 
   await handleSet(select, {isFocused: true});
-  await handleKeyboard('ArrowDown');
+  await handleKeyboard('ArrowDown', select.input);
   await handleKeyboard('Enter');
 
   t.ok(selectEvent);
@@ -1992,6 +2052,7 @@ test('when value is cleared the clear event is fired', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       value: items[0],
     }
@@ -2002,7 +2063,7 @@ test('when value is cleared the clear event is fired', async (t) => {
     clearEvent = true;
   });
 
-  document.querySelector('.clearSelect').click();
+  document.querySelector('.clear-select').click();
   t.ok(clearEvent);
 
   select.$destroy();
@@ -2014,6 +2075,7 @@ test('when multi item is cleared the clear event is fired with removed item', as
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [itemToRemove]
@@ -2026,7 +2088,7 @@ test('when multi item is cleared the clear event is fired with removed item', as
     removedItem = event.detail;
   });
 
-  document.querySelector('.multiSelectItem_clear').click();
+  document.querySelector('.multi-item_clear').click();
   t.equal(JSON.stringify(removedItem), JSON.stringify(itemToRemove));
 
   select.$destroy();
@@ -2036,15 +2098,16 @@ test('when items in list filter or update then first item in list should highlig
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: true
     }
   });
 
+  await handleKeyboard('ArrowDown', select.input);
   await handleKeyboard('ArrowDown');
   await handleKeyboard('ArrowDown');
-  await handleKeyboard('ArrowDown');
-
+  
   t.ok(document.querySelector('.hover').innerHTML === 'Cake');
   await handleSet(select, {filterText: 'c'});
   t.ok(document.querySelector('.hover').innerHTML === 'Chocolate');
@@ -2056,6 +2119,7 @@ test('when item is selected or state changes then check value[optionIdentifier] 
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {value: 'cake', label: 'Cake'}
     }
@@ -2077,6 +2141,7 @@ test('when isMulti and item is selected or state changes then check value[option
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [
@@ -2105,6 +2170,7 @@ test('when isFocused turns to false then check Select is no longer in focus', as
   const select = new Select({
     target,
     props: {
+      
       isFocused: true,
       items,
     }
@@ -2113,6 +2179,7 @@ test('when isFocused turns to false then check Select is no longer in focus', as
   const selectSecond = new Select({
     target: extraTarget,
     props: {
+      
       isFocused: false,
       items,
     }
@@ -2148,6 +2215,7 @@ test('when items and loadOptions method are both supplied then fallback to items
   const select = new Select({
     target,
     props: {
+      
       getOptionLabel: (option) => option.name,
       getSelectionLabel: (option) => option.name,
       loadOptions: getPosts,
@@ -2173,6 +2241,7 @@ test('when items is just an array of strings then render list', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true
     }
@@ -2190,6 +2259,7 @@ test('when items are just strings then value should render', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {value: 'one', label: 'one', index: 0}
     }
@@ -2199,7 +2269,7 @@ test('when items are just strings then value should render', async (t) => {
   select.$destroy();
 });
 
-test('when isVirtualList then render list', async (t) => {
+test('when VirtualList then render list', async (t) => {
   function fill(len, fn) {
     return Array(len).fill().map((_, i) => fn(i));
   }
@@ -2212,47 +2282,14 @@ test('when isVirtualList then render list', async (t) => {
   const select = new Select({
     target,
     props: {
+      VirtualList,
       items,
-      isVirtualList: true,
       listOpen: true
     }
   });
 
   await wait(0);
-  t.ok(document.querySelector('.listItem'));
-
-  select.$destroy();
-});
-
-test('when isVirtualList and filterText changes then rendered list scrolls to top', async (t) => {
-  function fill(len, fn) {
-    return Array(len).fill().map((_, i) => fn(i));
-  }
-
-  const items = fill(10000, (i) => {
-      const name = getName();
-      return name
-  });
-
-  const select = new Select({
-    target,
-    props: {
-      items,
-      isVirtualList: true,
-      listOpen: true
-    }
-  });
-
-  await wait(0);
-  const virtual = document.querySelector('svelte-virtual-list-viewport');
-  virtual.scrollTop = 120000;
-
-  select.$set({
-    filterText: 'swift'
-  });
-
-  await wait(0);
-  t.ok(virtual.scrollTop === 0);
+  t.ok(document.querySelector('.list-item'));
 
   select.$destroy();
 });
@@ -2261,6 +2298,7 @@ test('when isMulti and value has items then check each item is unique', async (t
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [
@@ -2280,6 +2318,7 @@ test('when isMulti and textFilter has length then enter should select item', asy
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       isFocused: true,
@@ -2299,6 +2338,7 @@ test('when isMulti and textFilter has length and no items in list then enter sho
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       isFocused: true,
@@ -2317,6 +2357,7 @@ test('When isMulti and no selected item then delete should do nothing', async (t
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       isFocused: true,
@@ -2335,6 +2376,7 @@ test('When list is open, filterText applied and Enter/Tab key pressed should sel
   const select = new Select({
     target,
     props: {
+      
       listOpen: true,
       isFocused: true,
       filterText: 'A5',
@@ -2347,7 +2389,7 @@ test('When list is open, filterText applied and Enter/Tab key pressed should sel
   window.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Enter'}));
   t.equal(select.value.value, 'A5');
   await wait(0);
-  t.ok(target.querySelector('.selectedItem .selection').innerHTML === 'A5');
+  t.ok(target.querySelector('.selected-item .selection').innerHTML === 'A5');
 
   select.$destroy();
 });
@@ -2357,6 +2399,7 @@ test('When inputAttributes is supplied each attribute is placed on the Select in
   const select = new Select({
     target,
     props: {
+      
       items,
       inputAttributes: {
         id: 'testId',
@@ -2377,12 +2420,13 @@ test('when items and value supplied as just strings then value should render cor
   const select = new Select({
     target,
     props: {
+      
       items: ['Pizza', 'Chocolate', 'Crisps'],
       value: 'Pizza'
     }
   });
 
-  t.equal(document.querySelector('.selectedItem .selection').innerHTML, 'Pizza');
+  t.equal(document.querySelector('.selected-item .selection').innerHTML, 'Pizza');
 
   select.$destroy();
 });
@@ -2391,13 +2435,14 @@ test('when isMulti with items and value supplied as just strings then value shou
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items: ['Pizza', 'Chocolate', 'Crisps'],
       value: ['Pizza']
     }
   });
 
-  t.equal(document.querySelector('.multiSelectItem_label').innerHTML, 'Pizza');
+  t.equal(document.querySelector('.multi-item_label').innerHTML, 'Pizza');
 
   select.$destroy();
 });
@@ -2414,6 +2459,7 @@ test('when isMulti, groupBy and value are supplied then list should be filtered'
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items: _items,
       groupBy: (item) => item.group,
@@ -2436,6 +2482,7 @@ test('When isCreatable disabled, creator is not displayed', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isFocused: true,
       listOpen: true
@@ -2446,7 +2493,7 @@ test('When isCreatable disabled, creator is not displayed', async (t) => {
 
   await wait(0);
 
-  t.ok(document.querySelector('.listContainer > .empty'));
+  t.ok(document.querySelector('.list > .empty'));
 
   select.$destroy();
 });
@@ -2463,6 +2510,7 @@ test('When isCreatable enabled, creator displays getOptionLabel for isCreator', 
   const select = new Select({
     target,
     props: {
+      
       items,
       isCreatable: true,
       isFocused: true,
@@ -2474,7 +2522,7 @@ test('When isCreatable enabled, creator displays getOptionLabel for isCreator', 
   await wait(0);
   select.$set({ filterText });
   await wait(0);
-  const listItems = document.querySelectorAll('.listContainer > .listItem');
+  const listItems = document.querySelectorAll('.list > .list-item');
   t.equal(listItems[listItems.length - 1].querySelector('.item').innerHTML, getOptionLabel(creatorItem, filterText));
 
   select.$destroy();
@@ -2490,6 +2538,7 @@ test('When isCreatable enabled, creator is not displayed when duplicate item val
   const select = new Select({
     target,
     props: {
+      
       items: [item],
       isCreatable: true,
       listOpen: true
@@ -2500,7 +2549,7 @@ test('When isCreatable enabled, creator is not displayed when duplicate item val
   select.$set({ filterText: dupeValueForCheck });
   await wait(0);
 
-  const listItems = document.querySelectorAll('.listContainer > .listItem');
+  const listItems = document.querySelectorAll('.list > .list-item');
   t.equal(listItems[listItems.length - 1].querySelector('.item').innerHTML, dupeValueForCheck);
 
   select.$destroy();
@@ -2512,6 +2561,7 @@ test('When creator selected, selected item is set to created item', async (t) =>
   const select = new Select({
     target,
     props: {
+      
       items,
       isCreatable: true,
       isFocused: true,
@@ -2537,6 +2587,7 @@ test('When creator is selected, created item it added to multi selection', async
   const select = new Select({
     target,
     props: {
+      
       items,
       isCreatable: true,
       isFocused: true,
@@ -2564,6 +2615,7 @@ test('When creator is selected multiple times, items are all added to multi sele
   const select = new Select({
     target,
     props: {
+      
       items,
       isCreatable: true,
       isFocused: true,
@@ -2592,6 +2644,7 @@ test('When isMulti and an items remove icon is clicked then item should be remov
   const select = new Select({
     target,
     props: {
+      Multi,
       items,
       isCreatable: true,
       value: [
@@ -2602,9 +2655,9 @@ test('When isMulti and an items remove icon is clicked then item should be remov
     }
   });
 
-  await querySelectorClick('.multiSelectItem_clear');
+  await querySelectorClick('.multi-item_clear');
   t.ok(select.value[0].value === 'cake')
-  await querySelectorClick('.multiSelectItem_clear');
+  await querySelectorClick('.multi-item_clear');
   t.ok(!select.value);
 
   select.$destroy();
@@ -2630,6 +2683,7 @@ test('When isCreatable with non-default item structure, item creator displays ge
   const select = new Select({
     target,
     props: {
+      
       optionIdentifier: 'food',
       getOptionLabel: itemDisplay,
       getSelectionLabel: itemDisplay,
@@ -2647,7 +2701,7 @@ test('When isCreatable with non-default item structure, item creator displays ge
   await wait(0);
   select.$set({ filterText });
   await wait(0);
-  const listItems = document.querySelectorAll('.listContainer > .listItem');
+  const listItems = document.querySelectorAll('.list > .list-item');
   t.equal(listItems[listItems.length - 1].querySelector('.item').innerHTML, creatorLabel(filterText));
 
   select.$destroy();
@@ -2663,6 +2717,7 @@ test('When isCreatable and isMulti and optionIdentifier is supplied creator disp
   const select = new Select({
     target,
     props: {
+      Multi,
       optionIdentifier: 'foo',
       isMulti: true,
       items: _items,
@@ -2673,7 +2728,7 @@ test('When isCreatable and isMulti and optionIdentifier is supplied creator disp
   await wait(0);
   select.$set({ filterText });
   await wait(0);
-  const listItems = document.querySelectorAll('.listContainer > .listItem');
+  const listItems = document.querySelectorAll('.list > .list-item');
   t.equal(listItems[listItems.length - 1].querySelector('.item').innerHTML, `Create \"${ filterText }\"`);
 
   select.$destroy();
@@ -2699,6 +2754,7 @@ test('When isCreatable and isMulti and optionIdentifier is supplied multiple cre
   const select = new Select({
     target,
     props: {
+      Multi,
       optionIdentifier,
       isMulti: true,
       items: _items,
@@ -2738,6 +2794,7 @@ test('When isCreatable and item is created then createItem method should only ru
   const select = new Select({
     target,
     props: {
+      
       isCreatable: true,
       items,
       createItem
@@ -2758,6 +2815,7 @@ test('When items are collection and value a string then lookup item using option
   const select = new Select({
     target,
     props: {
+      
       items,
       value: 'cake'
     }
@@ -2771,10 +2829,11 @@ test('When items are collection and value a string then lookup item using option
   select.$destroy();
 });
 
-test('When listAutoWidth is set to false list container should have style of width:100%', async (t) => {
+test('When listAutoWidth is set to false list container should have style of width:auto', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       listAutoWidth: false,
       listOpen: true
@@ -2782,8 +2841,8 @@ test('When listAutoWidth is set to false list container should have style of wid
   });
 
   await wait(0);
-  const listWidth = document.querySelectorAll('.selectContainer > div')[0].style.width;
-  t.ok(listWidth === '100%');
+  const listWidth = document.querySelectorAll('.list')[0].style.width;
+  t.ok(listWidth === 'auto');
   select.$destroy();
 });
 
@@ -2792,6 +2851,7 @@ test('When item is already active and is selected from list then close list', as
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true,
       value: 'pizza'
@@ -2799,7 +2859,7 @@ test('When item is already active and is selected from list then close list', as
   });
 
   await wait(0);
-  await querySelectorClick('.listContainer > .listItem > .item.active');
+  await querySelectorClick('.list > .list-item > .item.active');
   await wait(0);
   t.ok(select.value.value === 'pizza');
   select.$destroy();
@@ -2810,6 +2870,7 @@ test('When Icon prop is supplied then render on Select', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       Icon: TestIcon
     }
@@ -2824,6 +2885,7 @@ test('When showChevron prop is true only show chevron when there is no value on 
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {value: 'chocolate', label: 'Chocolate'},
       showChevron: true
@@ -2839,28 +2901,30 @@ test('When showChevron prop is true and no value show chevron on Select', async 
   const select = new Select({
     target,
     props: {
+      ChevronIcon,
       items,
       showChevron: true
     }
   });
 
-  t.ok(document.querySelectorAll('.indicator')[0]);
+  t.ok(document.querySelectorAll('.chevron')[0]);
 
   select.$destroy();
 });
 
-test('When showIndicator and isClearable is true always show chevron on Select', async (t) => {
+test('When showChevron and isClearable is true always show chevron on Select', async (t) => {
   const select = new Select({
     target,
     props: {
+      ChevronIcon,
       items,
       value: {value: 'chocolate', label: 'Chocolate'},
-      showIndicator: true,
+      showChevron: true,
       isClearable: false
     }
   });
 
-  t.ok(document.querySelectorAll('.indicator')[0]);
+  t.ok(document.querySelectorAll('.chevron')[0]);
 
   select.$destroy();
 });
@@ -2869,6 +2933,7 @@ test('When items and loadItems then listOpen should be false', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       getSelectionLabel: (option) => option.name,
       getOptionLabel: (option) => option.name,
       loadOptions: getPosts,
@@ -2890,14 +2955,15 @@ test('Select container classes can be injected', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
-      value: { name: 'Item #2' },
-      containerClasses: 'testclass',
+      value: {value: 'cake', label: 'Cake'},
+      class: 'svelte-select testclass',
     },
   });
 
   t.ok(
-    document.querySelector('.selectContainer').classList.contains('testclass')
+    document.querySelector('.svelte-select').classList.contains('testclass')
   );
   select.$destroy();
 });
@@ -2907,6 +2973,7 @@ test('When noOptionsMessage is changed after List component has been created the
   const select = new Select({
     target,
     props: {
+      
       getOptionLabel: (option) => option.name,
       loadOptions: getPosts,
       optionIdentifier: 'id',
@@ -2936,6 +3003,7 @@ test('When loadOptions promise is resolved then dispatch loaded', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       loadOptions: resolvePromise,
     },
   });
@@ -2967,6 +3035,7 @@ test('When loadOptions promise is rejected then dispatch error', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       loadOptions: rejectPromise,
     },
   });
@@ -2998,6 +3067,7 @@ test('When items change then value should also update', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {value: 'chips', label: 'Chips'},
     },
@@ -3016,7 +3086,7 @@ test('When items change then value should also update', async (t) => {
   await wait(0);
 
   t.ok(select.value.label === 'Loaded Fries');
-  t.ok(target.querySelector('.selectedItem .selection').innerHTML === 'Loaded Fries');
+  t.ok(target.querySelector('.selected-item .selection').innerHTML === 'Loaded Fries');
 
   select.$destroy();
 
@@ -3025,6 +3095,7 @@ test('When items change then value should also update', async (t) => {
   const multiSelect = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chips', label: 'Chips'}, {value: 'pizza', label: 'Pizza'}],
@@ -3053,6 +3124,7 @@ test('When items change then value should also update but only if found in items
   const select = new Select({
     target,
     props: {
+      
       items,
       value: {value: 'chips', label: 'Chips'},
     },
@@ -3071,7 +3143,7 @@ test('When items change then value should also update but only if found in items
   await wait(0);
 
   t.ok(select.value.label === 'Chips');
-  t.ok(target.querySelector('.selectedItem .selection').innerHTML === 'Chips');
+  t.ok(target.querySelector('.selected-item .selection').innerHTML === 'Chips');
 
   select.$destroy();
 });
@@ -3080,6 +3152,7 @@ test('When isMulti and multiFullItemClearable then clicking anywhere on the item
   const multiSelect = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       multiFullItemClearable: true,
@@ -3088,7 +3161,7 @@ test('When isMulti and multiFullItemClearable then clicking anywhere on the item
   });
 
   await wait(0);
-  await querySelectorClick('.multiSelectItem');
+  await querySelectorClick('.multi-item');
   await wait(0);
   t.ok(multiSelect.value[0].label === 'Pizza');
   
@@ -3099,6 +3172,7 @@ test('When isMulti and filterText then items should filter out already selected 
   const multiSelect = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items,
       value: [{value: 'chips', label: 'Chips'}, {value: 'pizza', label: 'Pizza'}],
@@ -3123,6 +3197,7 @@ test('when loadOptions and items is supplied then list should close on blur', as
   const select = new Select({
     target,
     props: {
+      
       items,
       loadOptions,
     }
@@ -3143,6 +3218,7 @@ test('when isCreatable and item created then event "itemCreated" should dispatch
   const select = new Select({
     target,
     props: {
+      
       items,
       isCreatable: true,
       isFocused: true,
@@ -3173,6 +3249,7 @@ test('when loadOptions response returns cancelled true then dont end loading sta
   const select = new Select({
     target,
     props: {
+      
       loadOptions: getCancelledRes,
     }
   });
@@ -3184,12 +3261,12 @@ test('when loadOptions response returns cancelled true then dont end loading sta
   select.$destroy();
 });
 
-test('when ClearItem replace clear icon', async (t) => {
+test('when ClearIcon replace clear icon', async (t) => {
   const select = new Select({
     target,
     props: {
-      items,
       ClearIcon: TestClearIcon,
+      items,
       value: {value: 'chips', label: 'Chips'}
     }
   });
@@ -3199,17 +3276,18 @@ test('when ClearItem replace clear icon', async (t) => {
   select.$destroy();
 });
 
-test('clicking outside the Select should close and blur it', async (t) => {
+test('losing focus of Select should close list', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
     }
   });
 
-  await querySelectorClick('.selectContainer');
+  await querySelectorClick('.svelte-select');
   t.ok(select.listOpen);
-  await querySelectorClick('#extra');
+  document.querySelector('.svelte-select input').blur();
   t.ok(!select.listOpen);
 
   select.$destroy();
@@ -3221,13 +3299,14 @@ test('clicking on an external textarea should close and blur it', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
     }
   });
 
-  await querySelectorClick('.selectContainer');
+  await querySelectorClick('.svelte-select');
   t.ok(select.listOpen);
-  await querySelectorClick('textarea');
+  document.querySelector('textarea').focus();
   t.ok(!select.listOpen);
 
   textarea.remove();
@@ -3238,6 +3317,7 @@ test('when switching between isMulti true/false ensure Select continues working'
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true,
       value: {value: 'chips', label: 'Chips'}
@@ -3263,12 +3343,13 @@ test('when isSearchable is false then input should be readonly', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       isSearchable: false
     }
   });
 
-  let elem = target.querySelector('.selectContainer input');
+  let elem = target.querySelector('.svelte-select input');
   t.ok(elem.hasAttribute('readonly'));
 
   select.$destroy();
@@ -3279,6 +3360,7 @@ test('when esc key pressed should close list', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       listOpen: true
     }
@@ -3297,6 +3379,7 @@ test('when isMulti and placeholderAlwaysShow then always show placeholder text',
   const select = new Select({
     target,
     props: {
+      Multi,
       items,
       value: [{value: 'chocolate', label: 'Chocolate'},
       {value: 'pizza', label: 'Pizza'},],
@@ -3307,7 +3390,7 @@ test('when isMulti and placeholderAlwaysShow then always show placeholder text',
   });
 
   await wait(0);
-  let elem = target.querySelector('.selectContainer input[type="text"]');
+  let elem = target.querySelector('.svelte-select input[type="text"]');
   t.ok(elem.placeholder === 'foo bar');
 
   select.$destroy();
@@ -3326,6 +3409,7 @@ test('when loadOptions and value then items should show on promise resolve',asyn
   const select = new Select({
     target,
     props: {
+      
       value: {
         value: 'chocolate', label: 'Chocolate'
       },
@@ -3353,6 +3437,7 @@ test('when loadOptions, isMulti and value then filterText should remain on promi
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       value: {
         value: 'chocolate', label: 'Chocolate'
@@ -3369,40 +3454,19 @@ test('when loadOptions, isMulti and value then filterText should remain on promi
   select.$destroy();
 });
 
-
-test('When isClearable and showIndicator then indicator icon should not show when value', async (t) => {
-  const select = new Select({
-    target,
-    props: {
-      items,
-      isClearable: true,
-      showIndicator: true,
-      value: {value: 'chips', label: 'Chips'},
-    },
-  });
-
-  let elem = target.querySelector('.selectContainer .indicator');
-  t.ok(!elem);
-  select.value = null;
-  elem = target.querySelector('.selectContainer .indicator');
-  t.ok(elem);
-
-  select.$destroy();
-});
-
-
 test('When listOffset is set list position offset changes', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items,
       listOffset: 0,
       listOpen: true
     },
   });
 
-  let elem = target.querySelector('.listContainer');
-  t.ok(elem.style.top === '42px');
+  let elem = target.querySelector('.list');
+  t.ok(elem.style.top === '50px');
 
   select.$destroy();
 });
@@ -3411,6 +3475,7 @@ test('When items are updated post onMount ensure filtering still works', async (
   const select = new Select({
     target,
     props: {
+      
       items: null
     },
   });
@@ -3431,6 +3496,7 @@ test('When grouped items are updated post onMount ensure filtering still works',
   const select = new Select({
     target,
     props: {
+      
       groupBy: item => item.group
     },
   });
@@ -3454,6 +3520,7 @@ test('When groupBy and value selected ensure filtering still works', async (t) =
   const select = new Select({
     target,
     props: {
+      
       items: itemsWithGroup,
       groupBy: (item) => item.group,
       
@@ -3461,7 +3528,7 @@ test('When groupBy and value selected ensure filtering still works', async (t) =
   });
 
   select.filterText = 'Cake';
-  document.querySelector('.listItem .item').click();
+  document.querySelector('.list-item .item').click();
   await wait(0);
   t.ok(select.getFilteredItems().length === 7);
 
@@ -3472,16 +3539,17 @@ test('When value selected and filterText then ensure selecting the active value 
   const select = new Select({
     target,
     props: {
+      
       items,
     },
   });
 
   select.filterText = 'Cake';
-  document.querySelector('.listItem .item').click();
+  document.querySelector('.list-item .item').click();
   await wait(0);
   select.listOpen = true;
   select.filterText = 'Cake';
-  document.querySelector('.listItem .item').click();
+  document.querySelector('.list-item .item').click();
   
   t.ok(select.filterText.length === 0);
 
@@ -3493,6 +3561,7 @@ test('When groupBy, optionIdentifier and labelIdentifier then ensure list displa
   const select = new Select({
     target,
     props: {
+      
       items: itemsWithGroupIds,
       optionIdentifier: '_id',
       labelIdentifier: 'name',
@@ -3501,8 +3570,8 @@ test('When groupBy, optionIdentifier and labelIdentifier then ensure list displa
     },
   });
 
-  let titles = document.querySelectorAll('.listGroupTitle');
-  let items = document.querySelectorAll('.listItem .item');
+  let titles = document.querySelectorAll('.list-group-title');
+  let items = document.querySelectorAll('.list-item .item');
   t.equal(titles[0].innerHTML, 'Sweet');
   t.equal(titles[1].innerHTML, 'Savory');
   t.equal(items[0].innerHTML, 'Chocolate');
@@ -3516,6 +3585,7 @@ test('When groupBy, optionIdentifier, labelIdentifier and createGroupHeaderItem 
   const select = new Select({
     target,
     props: {
+      
       items: itemsWithGroupIds,
       optionIdentifier: '_id',
       labelIdentifier: 'name',
@@ -3529,8 +3599,8 @@ test('When groupBy, optionIdentifier, labelIdentifier and createGroupHeaderItem 
     },
   });
 
-  let titles = document.querySelectorAll('.listGroupTitle');
-  let items = document.querySelectorAll('.listItem .item');
+  let titles = document.querySelectorAll('.list-group-title');
+  let items = document.querySelectorAll('.list-item .item');
   t.equal(titles[0].innerHTML, 'XXX Sweet XXX Chocolate');
   t.equal(titles[1].innerHTML, 'XXX Savory XXX Pizza');
   t.equal(items[0].innerHTML, 'Chocolate');
@@ -3545,6 +3615,7 @@ test('When isMulti on:select events should fire on each item removal (including 
   const select = new Select({
     target,
     props: {
+      Multi,
       items,
       isMulti: true,
       value: ['Cake', 'Chips']
@@ -3557,9 +3628,9 @@ test('When isMulti on:select events should fire on each item removal (including 
     events.push('event fired');
   });
 
-  document.querySelector('.multiSelectItem_clear').click();
+  document.querySelector('.multi-item_clear').click();
   await wait(0);
-  document.querySelector('.multiSelectItem_clear').click();
+  document.querySelector('.multi-item_clear').click();
   await wait(0);
   t.ok(events.length === 2);
   
@@ -3571,6 +3642,7 @@ test('When loadOptions and isCreatable then create new item is active when promi
   const select = new Select({
     target,
     props: {
+      
       loadOptions: itemsPromiseEmpty,
       isCreatable: true,
     },
@@ -3578,7 +3650,7 @@ test('When loadOptions and isCreatable then create new item is active when promi
 
   select.filterText = 'Cake';
   await wait(400);
-  let createText = document.querySelector('.listItem .item').innerHTML;
+  let createText = document.querySelector('.list-item .item').innerHTML;
   t.equal(createText, 'Create "Cake"');
 
   select.$destroy();
@@ -3588,6 +3660,7 @@ test('When loadOptions and isCreatable then create new item show at bottom of re
   const select = new Select({
     target,
     props: {
+      
       loadOptions: itemsPromise,
       isCreatable: true,
     },
@@ -3595,7 +3668,7 @@ test('When loadOptions and isCreatable then create new item show at bottom of re
 
   select.filterText = 'Cake';
   await wait(400);
-  let createText = document.querySelector('.listItem:last-child .item').innerHTML;
+  let createText = document.querySelector('.list-item:last-child .item').innerHTML;
   t.equal(createText, 'Create "Cake"');
 
   select.$destroy();
@@ -3606,9 +3679,10 @@ test('When inputAttributes.name supplied, add to hidden input', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       inputAttributes: { name: 'Foods' },
       items: items,
-      showIndicator: true,
+      showChevron: true,
     },
   });
 
@@ -3622,6 +3696,7 @@ test('When no value then hidden field should also have no value', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       inputAttributes: { name: 'Foods' },
       items: items,
       
@@ -3638,6 +3713,7 @@ test('When value then hidden field should have value.label', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       items: items,
       value: {value: 'cake', label: 'Cake'},
     },
@@ -3653,6 +3729,7 @@ test('When isMulti and no value then hidden field should no value', async (t) =>
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items: items,
     },
@@ -3668,6 +3745,7 @@ test('When isMulti and value then hidden fields should list value items', async 
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items: items,
       value: [{value: 'cake', label: 'Cake'},  {value: 'pizza', label: 'Pizza'},]
@@ -3686,6 +3764,7 @@ test('When listOpen then aria-context describes highlighted item', async (t) => 
   const select = new Select({
     target,
     props: {
+      
       items: items,
       listOpen: true
     },
@@ -3703,6 +3782,7 @@ test('When listOpen and value then aria-selection describes value', async (t) =>
   const select = new Select({
     target,
     props: {
+      
       items: items,
       value: {value: 'cake', label: 'Cake'},
       isFocused: true
@@ -3719,6 +3799,7 @@ test('When listOpen, value and isMulti then aria-selection describes value', asy
   const select = new Select({
     target,
     props: {
+      Multi,
       isMulti: true,
       items: items,
       value: [{value: 'cake', label: 'Cake'},  {value: 'pizza', label: 'Pizza'},],
@@ -3737,6 +3818,7 @@ test('When ariaValues and value supplied, then aria-selection uses default updat
   const select = new Select({
     target,
     props: {
+      
       items: items,
       value: {value: 'pizza', label: 'Pizza'},
       isFocused: true,
@@ -3754,6 +3836,7 @@ test('When ariaListOpen, listOpen, then aria-context uses default updated', asyn
   const select = new Select({
     target,
     props: {
+      
       items: items,
       listOpen: true,
       ariaListOpen: (label, count) => `label: ${label}, count: ${count}`
@@ -3770,6 +3853,7 @@ test('When ariaFocused, focused value supplied, then aria-context uses default u
   const select = new Select({
     target,
     props: {
+      
       items: items,
       isFocused: true,
       ariaFocused: () => `nothing to see here.`
@@ -3787,6 +3871,7 @@ test('When id supplied then add to input', async (t) => {
   const select = new Select({
     target,
     props: {
+      
       id: 'foods',
       items: items,
     },
@@ -3798,24 +3883,206 @@ test('When id supplied then add to input', async (t) => {
   select.$destroy();
 });
 
-test('when list is open and up/down arrows are used to navigate list then isOutOfViewport result should stay consistent', async (t) => {
+
+test('allows the user to select an item by clicking with a focusable ancestor', async (t) => {
+  const ancestor = document.createElement("div");
+  ancestor.setAttribute("tabindex", "-1");
+  target.appendChild(ancestor);
+
   const select = new Select({
-    target,
+    target: ancestor,
     props: {
-      listOpen: true,
-      items: items,
-      containerStyles: 'position: absolute; bottom: 200px;'
+      
+      items,
     },
   });
 
-  let list = document.querySelector('.listContainer');
-  t.equal(list.style.bottom, '47px')
-  await handleKeyboard('ArrowDown');
-  t.equal(list.style.bottom, '47px')
-    
+  await querySelectorClick('.svelte-select');
+  await querySelectorClick('.list-item');
+  t.equal(select.value.label, 'Chocolate');
+
   select.$destroy();
 });
 
-// this allows us to close puppeteer once tests have completed
-window.done = done;
-export default {};
+
+test('when listOpen true on page load then list should show onMount', async (t) => {
+  const select = new Select({
+    target,
+    props: {
+      
+      items,
+      listOpen: true,
+    },
+  });
+
+  let list = document.querySelector('.list');
+  
+  t.ok(list);
+
+  select.$destroy();
+});
+
+test('when listOpen true on page load then list should show onMount', async (t) => {
+  const select = new Select({
+    target,
+    props: {
+      
+      items,
+      listOpen: true,
+    },
+  });
+
+  let list = document.querySelector('.list');
+  
+  t.ok(list);
+
+  select.$destroy();
+});
+
+
+test('when suggestions and no filterText then list should show suggestions', async (t) => {
+  const select = new Select({
+    target,
+    props: {
+      
+      loadOptions: () => {
+        return Promise.resolve(['foo'])
+      },
+      listOpen: true,
+      suggestions: ['one', 'two', 'three'],
+    },
+  });
+
+  let item = document.querySelector('.item');
+  t.equal(item.innerHTML, 'one');
+
+  select.$destroy();
+});
+
+test('when suggestions items is selected, list should stay open and filterText show become suggestion and loadOptions should run', async (t) => {
+  const select = new Select({
+    target,
+    props: {
+      
+      loadOptions: () => {
+        return Promise.resolve(['foo'])
+      },
+      listOpen: true,
+      suggestions: ['one', 'two', 'three'],
+    },
+  });
+
+  let item = document.querySelector('.item');
+  t.equal(item.innerHTML, 'one');
+  item.click();
+  t.equal(select.filterText, 'one');
+  await wait(400);
+  item = document.querySelector('.item');
+  t.equal(item.innerHTML, 'foo');
+
+  select.$destroy();
+});
+
+test('when VirtualList and no results then show noOptionsMessage', async (t) => {
+  function fill(len, fn) {
+    return Array(len).fill().map((_, i) => fn(i));
+  }
+
+  const items = fill(10000, (i) => {
+      const name = getName();
+      return name
+  });
+
+  const select = new Select({
+    target,
+    props: {
+      VirtualList,
+      items,
+      listOpen: true,
+      filterText: 'zzzzz'
+    }
+  });
+
+  await wait(0);
+  t.ok(document.querySelector('.empty'));
+
+  select.$destroy();
+});
+
+
+test('when value is set check from item and show correct label', async (t) => { 
+  const select = new Select({
+    target,
+    props: {
+      items,
+      listOpen: true,
+      
+    }
+  });
+
+  select.value = 'cake';
+  t.equal(select.value.label, 'Cake');
+  select.$destroy();
+});
+
+test('if ChevronIcon and showChevron show chevron and allow click', async (t) => { 
+  const select = new Select({
+    target,
+    props: {
+      ChevronIcon,
+      items,
+      showChevron: true
+    }
+  });
+
+  let chevron = document.querySelector('.chevron');
+  t.ok(chevron);
+  chevron.click();
+  t.ok(select.listOpen);
+  select.$destroy();
+});
+
+test('when component focuses fire on:focus event', async (t) => { 
+  const select = new Select({
+    target,
+    props: {
+      
+      items
+    }
+  });
+
+  let f = false;
+  select.$on('focus', () => {
+    f = true;
+  });
+
+  let ele = document.querySelector('.svelte-select input');
+  ele.focus();
+
+  t.ok(f);
+
+  select.$destroy();
+});
+
+
+test('when component blurs fire on:blur event', async (t) => { 
+  const select = new Select({
+    target,
+    props: {
+      items,
+      isFocused: true
+    }
+  });
+
+  let b = false;
+  select.$on('blur', () => {
+    b = true;
+  });
+
+  let ele = document.querySelector('.svelte-select input');
+  ele.blur();
+
+  t.ok(b);
+
+  select.$destroy();
+});

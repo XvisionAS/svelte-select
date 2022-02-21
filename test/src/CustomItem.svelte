@@ -21,13 +21,21 @@
     }
 </script>
 
+<div class="customItem {itemClasses}">
+    <img src={item.image_url} alt={item.name} />
+    <div class="customItem_title">
+        <div class="customItem_name">{item.name}</div>
+        <div class="customItem_tagline">{item.tagline}</div>
+    </div>
+</div>
+
 <style>
     .customItem {
         display: flex;
         align-items: center;
         cursor: default;
-        height: 40px;
-        line-height: 40px;
+        height: 42px;
+        line-height: 42px;
         padding: 0 16px;
         text-overflow: ellipsis;
         overflow: hidden;
@@ -73,11 +81,3 @@
         display: inline-block;
     }
 </style>
-
-<div class="customItem {itemClasses}">
-    <img src={item.image_url} alt={item.name} />
-    <div class="customItem_title">
-        <div class="customItem_name">{item.name}</div>
-        <div class="customItem_tagline">{item.tagline}</div>
-    </div>
-</div>

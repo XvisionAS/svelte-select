@@ -1747,7 +1747,7 @@ var adjectives = [
     'rundown',
     'runny',
     'rural',
-    'rustic  rusty',
+    'rustic  rusty',
     'ruthless',
     'sable',
     'sad',
