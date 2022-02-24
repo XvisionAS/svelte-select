@@ -3,9 +3,6 @@
   "version": "5.0.0-alpha.10",
   "repository": "https://rob-balfre@github.com/rob-balfre/svelte-select.git",
   "description": "A <Select> component for Svelte apps",
-  "svelte": "src/lib/index.js",
-  "module": "dist/index.mjs",
-  "main": "dist/index.js",
   "scripts": {
     "dev": "svelte-kit dev --host",
     "build": "svelte-kit build",
