@@ -10,8 +10,8 @@
     import _ChevronIcon from './ChevronIcon.svelte';
     import _LoadingIcon from './LoadingIcon.svelte';
     
-    import _filter from 'src/lib/filter';
-    import _getItems from 'src/lib/getItems';
+    import _filter from './filter.js';
+    import _getItems from './getItems.js';
 
     export let Item = _Item;
     export let List = _List;
