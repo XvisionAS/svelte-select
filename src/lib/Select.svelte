@@ -508,8 +508,8 @@
                     listOpen = false;
                     activeValue = undefined;
                 });
-                
-                dispatch('itemSelected', value);
+
+                dispatch('itemSelected', detail);
             }
         }
     }
