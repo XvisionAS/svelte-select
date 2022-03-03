@@ -2,14 +2,22 @@
     "useTabs": false,
     "singleQuote": true,
     "tabWidth": 4,
+    "printWidth": 120,
+    "bracketSameLine": true,
     "overrides": [
         {
             "files": ["*.svelte"],
             "options": {
                 "singleQuote": true
             }
+        },
+        {
+            "files": ["*.yml"],
+            "options": {
+                "tabWidth": 2
+            }
         }
     ],
-    "svelteSortOrder": "scripts-styles-markup",
+    "svelteSortOrder": "scripts-markup-styles",
     "svelteBracketNewLine": false
 }
